@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GD Engine Stable Editor Fix</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; overflow: hidden;
+            background: #000; font-family: 'Arial Black', sans-serif; user-select: none;
+        }
+        #gameContainer { position: relative; width: 100vw; height: 100vh; }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        .ui-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background: linear-gradient(135deg, #1e272e, #2c3e50); color: white; z-index: 10;
+        }
+        h1 { font-size: 2.2rem; text-shadow: 3px 3px #000; margin-bottom: 25px; text-align: center; letter-spacing: 1px;}
+        h2 { font-size: 1.1rem; text-shadow: 2px 2px #000; margin: 10px 0 5px 0; }
+        
+        .btn {
+            padding: 12px 25px; font-size: 1.2rem; background-color: #2ecc71;
+            color: white; border: 4px solid #fff; border-radius: 10px; cursor: pointer;
+            box-shadow: 0 4px #27ae60; text-shadow: 1px 1px #000; margin: 6px;
+        }
+        .btn:active { transform: translateY(3px); box-shadow: 0 1px #27ae60; }
+        .btn-blue { background-color: #3498db; box-shadow: 0 4px #2980b9; }
+        .btn-orange { background-color: #e67e22; box-shadow: 0 4px #d35400; }
+        .btn-red { background-color: #e74c3c; box-shadow: 0 4px #c0392b; }.grid { display: flex; gap: 8px; margin-bottom: 15px; background: rgba(0,0,0,0.4); padding: 8px; border-radius: 8px; }
+        .color-box { width: 35px; height: 35px; border: 2px solid white; border-radius: 5px; cursor: pointer; }
+        .icon-box { width: 40px; height: 40px; border: 2px solid white; border-radius: 5px; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 1.3rem; background: #333; }
+        .selected { border-color: #f1c40f; transform: scale(1.1); box-shadow: 0 0 8px #f1c40f; }
+
+        #editorPanelTop {
+            position: absolute; top: 8px; left: 8px; right: 8px;
+            display: none; justify-content: space-between; align-items: center; z-index: 15;
+            background: rgba(0,0,0,0.85); padding: 8px; border-radius: 8px;
+        }
+        #editorPanelBottom {
+            position: absolute; bottom: 8px; left: 8px; right: 8px;
+            display: none; flex-direction: column; gap: 5px; z-index: 15;
+            background: rgba(0,0,0,0.85); padding: 8px; border-radius: 8px;
+        }
+        
+        .editor-tools-grid { 
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr); 
+            gap: 4px; 
+            width: 100%;
+        }
+        .editor-settings-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px;
+            width: 100%;
+            margin-top: 2px;
+        }
+        
+        .tool-btn { 
+            padding: 6px 2px; font-size: 0.6rem; border: 2px solid #fff; 
+            border-radius: 6px; cursor: pointer; color: white; background: #444; 
+            font-family: sans-serif; font-weight: bold; white-space: nowrap;
+            box-shadow: 0 2px #222; text-align: center;
+        }
+        .tool-btn:active { transform: translateY(1px); box-shadow: 0 1px #222; }
+        .tool-btn.active { background: #f1c40f; color: #000; border-color: #fff; box-shadow: 0 2px #b5940b; }
+        
+        span { color: #fff; font-size: 0.75rem; font-family: sans-serif; }
+
+        #platformerControls {
+            position: absolute; bottom: 180px; left: 15px; right: 15px;
+            display: none; justify-content: space-between; z-index: 99; pointer-events: none;
+        }
+        .plat-btn {
+            width: 55px; height: 55px; background: rgba(255,255,255,0.35);
+            border: 2px solid #fff; border-radius: 12px; color: #fff;
+            font-size: 1.5rem; display: flex; justify-content: center; align-items: center;
+            pointer-events: auto; cursor: pointer; box-shadow: 0 3px rgba(0,0,0,0.4);
+        }
+        .plat-btn:active { background: rgba(255,255,255,0.6); transform: translateY(1px); }
+        
+        #winScreen, #loseScreen, #customMenu { display: none; }
+        #winScreen h1 { color: #f1c40f; } #loseScreen h1 { color: #e74c3c; }
+    </style>
+</head>
+<body><div id="gameContainer">
+    <div id="mainMenu" class="ui-screen">
+        <h1>GEOMETRY DASH</h1>
+        <button class="btn" onclick="startGame()">ИГРАТЬ</button>
+        <button class="btn btn-blue" onclick="openCustom()">КАСТОМИЗАЦИЯ</button>
+        <button class="btn btn-orange" onclick="openEditor()">РЕДАКТОР</button>
+    </div>
+
+    <div id="customMenu" class="ui-screen">
+        <h1>КАСТОМИЗАЦИЯ</h1>
+        <h2>ЦВЕТ КУБА</h2>
+        <div class="grid" id="colorGrid"></div>
+        <h2>ЛИЦО КУБА</h2>
+        <div class="grid" id="iconGrid"></div>
+        <button class="btn" onclick="toMainMenu()">НАЗАД</button>
+    </div>
+
+    <div id="editorPanelTop">
+        <button class="tool-btn btn-red" style="border:none; margin:0;" onclick="toMainMenu()">ВЫЙТИ</button>
+        <span id="editorInfo">Объектов: 0 | Камера X: 0</span>
+        <button id="modeToggleBtn" class="tool-btn btn-blue" style="border:none; margin:0;" onclick="toggleEditorMode()">РЕЖИМ: НОРМАЛ</button>
+        <button class="tool-btn btn-green" style="background:#2ecc71; border:none; margin:0;" onclick="testCustomLevel()">ТЕСТ</button>
+    </div>
+
+    <div id="editorPanelBottom">
+        <div class="editor-tools-grid">
+            <button id="tool_spike" class="tool-btn active" onclick="setTool('spike')">ШИП</button>
+            <button id="tool_block" class="tool-btn" onclick="setTool('block')">КУБ</button>
+            <button id="tool_orb" class="tool-btn" onclick="setTool('orb')">ОРБ</button>
+            <button id="tool_pad" class="tool-btn" onclick="setTool('pad')">БАТУТ</button>
+            <button id="tool_pcube" class="tool-btn" onclick="setTool('pcube')">П.КУБА</button>
+            <button id="tool_pship" class="tool-btn" onclick="setTool('pship')">П.САМ.</button>
+            <button id="tool_speed1" class="tool-btn" onclick="setTool('speed1')">СКОР. x1</button>
+            <button id="tool_speed2" class="tool-btn" onclick="setTool('speed2')">СКОР. x2</button>
+            <button id="tool_eraser" class="tool-btn" style="background:#e74c3c;" onclick="setTool('eraser')">ЛАСТИК</button>
+        </div>
+        <div class="editor-settings-row">
+            <button class="tool-btn" style="background:#1e272e;" onclick="cycleBgColor()">ФОН</button>
+            <button class="tool-btn" style="background:#2c3e50;" onclick="cycleFloorColor()">ПОЛ</button>
+        </div>
+    </div>
+
+    <div id="platformerControls">
+        <div style="display:flex; gap:12px; pointer-events:auto;">
+            <div class="plat-btn" id="btnLeft">←</div>
+            <div class="plat-btn" id="btnRight">→</div>
+        </div>
+        <div class="plat-btn" id="btnJump">↑</div>
+    </div>
+
+    <div id="winScreen" class="ui-screen">
+        <h1>УРОВЕНЬ ПРОЙДЕН!</h1>
+        <button class="btn" onclick="toMainMenu()">В МЕНЮ</button>
+    </div>
+
+    <div id="loseScreen" class="ui-screen">
+        <h1>КРАШ!</h1>
+        <button class="btn" onclick="restartGame()">ПОВТОРИТЬ</button>
+        <button class="btn btn-red" onclick="toMainMenu()">В МЕНЮ</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<script>const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const mainMenu = document.getElementById("mainMenu");
+const customMenu = document.getElementById("customMenu");
+const editorPanelTop = document.getElementById("editorPanelTop");
+const editorPanelBottom = document.getElementById("editorPanelBottom");
+const platformerControls = document.getElementById("platformerControls");
+const winScreen = document.getElementById("winScreen");
+const loseScreen = document.getElementById("loseScreen");
+
+let gameState = "MENU", gravity = 0.6, gameSpeed = 6, baseSpeed = 6, floorY = canvas.height - 165;
+let levelGameMode = "normal"; 
+const bgColors = ["#1e272e", "#0a3d62", "#38006b", "#1b5e20", "#b71c1c", "#000000"];
+const floorColors = ["#2c3e50", "#0c2461", "#21004a", "#003300", "#7f0000", "#111111"];
+let bgIdx = 0, floorIdx = 0;
+
+let movingLeft = false, movingRight = false;
+
+const player = {
+    x: 120, y: 0, size: 40, ySpeed: 0, jumpForce: -11,
+    isGrounded: false, rotation: 0, mode: "cube",
+    color: "#00ffcc", faceStyle: 1,
+    reset: function() {
+        this.x = 120; this.y = floorY - this.size;
+        this.ySpeed = 0; this.isGrounded = true; this.rotation = 0;
+        this.mode = "cube"; gameSpeed = baseSpeed;
+    }
+};
+
+let obstacles = [];
+const defaultLevel = [
+    {x: 500, y: 0, type: "spike"}, {x: 800, y: 0, type: "block"}, 
+    {x: 840, y: 0, type: "block"}, {x: 1200, y: 40, type: "orb"}, 
+    {x: 1500, y: 0, type: "pad"}, {x: 1800, y: 40, type: "pship"}, 
+    {x: 2300, y: 40, type: "speed2"}, {x: 2800, y: 0, type: "spike"}, 
+    {x: 3300, y: 40, type: "speed1"}, {x: 3700, y: 40, type: "pcube"}
+]; 
+let customLevel = [];        
+let isTestingCustom = false, cameraX = 0, currentTool = "spike"; 
+
+const colors = ["#00ffcc", "#ff0055", "#e74c3c", "#f1c40f", "#9b59b6", "#34495e"];
+const colorGrid = document.getElementById("colorGrid");
+colors.forEach((col, idx) => {
+    let div = document.createElement("div"); div.className = "color-box" + (idx===0 ? " selected" : ""); div.style.backgroundColor = col;
+    div.addEventListener("click", (e) => { e.stopPropagation(); document.querySelectorAll(".color-box").forEach(b => b.classList.remove("selected")); div.classList.add("selected"); player.color = col; });
+    colorGrid.appendChild(div);
+});
+
+const faces = ["🙂", "😡", "😎", "😮"];
+const iconGrid = document.getElementById("iconGrid");
+faces.forEach((face, idx) => {
+    let div = document.createElement("div"); div.className = "icon-box" + (idx===0 ? " selected" : ""); div.innerText = face;
+    div.addEventListener("click", (e) => { e.stopPropagation(); document.querySelectorAll(".icon-box").forEach(b => b.classList.remove("selected")); div.classList.add("selected"); player.faceStyle = idx + 1; });
+    iconGrid.appendChild(div);
+});function toMainMenu() { mainMenu.style.display = "flex"; customMenu.style.display = "none"; editorPanelTop.style.display = "none"; editorPanelBottom.style.display = "none"; platformerControls.style.display = "none"; winScreen.style.display = "none"; loseScreen.style.display = "none"; gameState = "MENU"; isTestingCustom = false; movingLeft = false; movingRight = false;}
+function startGame() { mainMenu.style.display = "none"; customMenu.style.display = "none"; editorPanelTop.style.display = "none"; editorPanelBottom.style.display = "none"; winScreen.style.display = "none"; loseScreen.style.display = "none"; gameState = "PLAYING"; isTestingCustom = false; levelGameMode = "normal"; initLevel(defaultLevel); }
+function openCustom() { mainMenu.style.display = "none"; customMenu.style.display = "flex"; gameState = "CUSTOM"; }
+function openEditor() { mainMenu.style.display = "none"; editorPanelTop.style.display = "flex"; editorPanelBottom.style.display = "flex"; platformerControls.style.display = "none"; gameState = "EDITOR"; cameraX = 0; updateEditorUI(); }
+
+function toggleEditorMode() { 
+    levelGameMode = (levelGameMode === "normal") ? "platformer" : "normal"; 
+    let name = (levelGameMode === "normal") ? "НОРМАЛ" : "ПЛАТФОРМЕР";
+    document.getElementById("modeToggleBtn").innerText = `РЕЖИМ: ${name}`; 
+}
+
+function setTool(tool) {
+    currentTool = tool.toLowerCase();
+    const tools = ['spike', 'block', 'orb', 'pad', 'pcube', 'pship', 'speed1', 'speed2', 'eraser'];
+    tools.forEach(t => { let el = document.getElementById("tool_" + t); if (el) el.classList.remove("active"); });
+    let activeEl = document.getElementById("tool_" + tool.toLowerCase()); if (activeEl) activeEl.classList.add("active");
+}
+
+function cycleBgColor() { bgIdx = (bgIdx + 1) % bgColors.length; }
+function cycleFloorColor() { floorIdx = (floorIdx + 1) % floorColors.length; }
+
+function testCustomLevel() { if(customLevel.length === 0) { alert("Поставьте хотя бы один объект!"); return; } editorPanelTop.style.display = "none"; editorPanelBottom.style.display = "none"; gameState = "PLAYING"; isTestingCustom = true; initLevel(customLevel); }
+function restartGame() { winScreen.style.display = "none"; loseScreen.style.display = "none"; gameState = "PLAYING"; initLevel(isTestingCustom ? customLevel : defaultLevel); }
+
+function initLevel(levelData) { floorY = canvas.height - 165; player.reset(); obstacles = levelData.map(obj => ({ x: Math.floor(obj.x), y: Math.floor(obj.y), type: obj.type.toLowerCase(), w: 40, h: 40, triggered: false })); obstacles.sort((a,b) => a.x - b.x); platformerControls.style.display = (levelGameMode === "platformer") ? "flex" : "none"; }
+function updateEditorUI() { document.getElementById("editorInfo").innerText = `Объектов: ${customLevel.length} | Кам X: ${Math.floor(cameraX)}`; }
+
+function jump() {
+    if (gameState === "PLAYING") {
+        if (player.mode === "cube" && player.isGrounded) { player.ySpeed = player.jumpForce; player.isGrounded = false; }
+        else if (player.mode === "ship") { player.ySpeed = -5.5; }
+        obstacles.forEach(obj => {
+            if (obj.type === "orb" && !obj.triggered) {
+                let dist = Math.hypot((player.x + player.size/2) - (obj.x + obj.w/2), (player.y + player.size/2) - (floorY - obj.y - obj.h/2));
+                if (dist < 75) { player.ySpeed = player.jumpForce * 0.95; player.isGrounded = false; obj.triggered = true; }
+            }
+        });
+    }
+}
+
+function handleCanvasInteraction(clientX, clientY) {
+    let rect = canvas.getBoundingClientRect();
+    let realX = Math.floor(clientX - rect.left);
+    let realY = Math.floor(clientY - rect.top);
+
+    if (gameState === "PLAYING") {
+        if (levelGameMode === "normal") jump();
+    } 
+    else if (gameState === "EDITOR") {
+        if (realY > floorY - 80 && realY < floorY) {
+            if (realX > canvas.width - 80) { cameraX += 200; updateEditorUI(); return; }
+            if (realX < 80 && cameraX > 0) { cameraX -= 200; updateEditorUI(); return; }
+        }
+        
+        let panelElement = document.getElementById("editorPanelBottom");
+        if (realY > 90 && realY < (canvas.height - panelElement.clientHeight - 15)) {
+            let worldX = Math.floor((realX + cameraX) / 40) * 40;
+            let heightBlock = Math.floor((floorY - realY) / 40) * 40;
+            if (heightBlock < 0) heightBlock = 0;
+
+            let existingIdx = customLevel.findIndex(obj => obj.x === worldX && obj.y === heightBlock);
+            
+            if (currentTool === "eraser") {
+                if (existingIdx > -1) customLevel.splice(existingIdx, 1);
+            } else {
+                if (existingIdx > -1) {
+                    customLevel[existingIdx].type = currentTool;
+                } else {
+                    customLevel.push({ x: worldX, y: heightBlock, type: currentTool, w: 40, h: 40 });
+                }
+            }
+            updateEditorUI();
+        }
+    }
+}document.getElementById("btnLeft").addEventListener("touchstart", (e) => { if(e) e.stopPropagation(); movingLeft = true; });
+document.getElementById("btnLeft").addEventListener("touchend", (e) => { if(e) e.stopPropagation(); movingLeft = false; });
+document.getElementById("btnRight").addEventListener("touchstart", (e) => { if(e) e.stopPropagation(); movingRight = true; });
+document.getElementById("btnRight").addEventListener("touchend", (e) => { if(e) e.stopPropagation(); movingRight = false; });
+document.getElementById("btnJump").addEventListener("touchstart", (e) => { if(e) e.stopPropagation(); jump(); });
+
+window.addEventListener("keydown", (e) => { 
+    if (e.code === "Space" || e.code === "ArrowUp") jump(); 
+    if (e.code === "ArrowLeft") movingLeft = true; if (e.code === "ArrowRight") movingRight = true;
+});
+window.addEventListener("keyup", (e) => { if (e.code === "ArrowLeft") movingLeft = false; if (e.code === "ArrowRight") movingRight = false; });
+
+canvas.addEventListener("mousedown", (e) => { if (gameState === "PLAYING" || gameState === "EDITOR") { handleCanvasInteraction(e.clientX, e.clientY); } });
+
+function checkCollision(px, py, ps, tx, ty, tw, th) { return px + ps > tx && px < tx + tw && py + ps > ty && py < ty + th; }
+
+function drawObjectTexture(obj, drawX, drawY) {
+    let type = obj.type.toLowerCase();
+    if (type === "spike") {
+        ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.moveTo(drawX, floorY - obj.y); ctx.lineTo(drawX + 20, drawY); ctx.lineTo(drawX + 40, floorY - obj.y); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#000000"; ctx.lineWidth = 3; ctx.stroke();
+    } else if (type === "block") {
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(drawX, drawY, 40, 40); ctx.strokeStyle = "#000000"; ctx.lineWidth = 3; ctx.strokeRect(drawX, drawY, 40, 40);
+        ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 2; ctx.strokeRect(drawX + 5, drawY + 5, 30, 30);
+    } else if (type === "orb") {
+        let grad = ctx.createRadialGradient(drawX+20, drawY+20, 2, drawX+20, drawY+20, 16); grad.addColorStop(0, '#fff'); grad.addColorStop(0.4, obj.triggered ? '#7f8c8d' : '#f1c40f'); grad.addColorStop(1, 'rgba(241,196,15,0)');
+        ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(drawX + 20, drawY + 20, 18, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
+    } else if (type === "pad") {
+        ctx.fillStyle = "#e67e22"; ctx.fillRect(drawX, floorY - obj.y - 12, 40, 12); ctx.strokeStyle = "#000"; ctx.lineWidth = 2; ctx.strokeRect(drawX, floorY - obj.y - 12, 40, 12);
+    } else if (type === "pcube" || type === "pship") {
+        ctx.fillStyle = type === "pcube" ? "#00bcd4" : "#9c27b0"; ctx.fillRect(drawX + 12, drawY, 16, 40); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.strokeRect(drawX + 12, drawY, 16, 40);
+    } else if (type === "speed1" || type === "speed2") {
+        ctx.fillStyle = type === "speed1" ? "#ffeb3b" : "#4caf50"; ctx.beginPath(); ctx.moveTo(drawX+5, drawY+10); ctx.lineTo(drawX+25, drawY+20); ctx.lineTo(drawX+5, drawY+30); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#000"; ctx.stroke();
+    }
+}
+
+function drawFace(x, y) {
+    ctx.fillStyle = "#000000";
+    if (player.faceStyle === 1) { ctx.fillRect(x - 12, y - 10, 6, 6); ctx.fillRect(x + 6, y - 10, 6, 6); ctx.fillRect(x - 8, y + 4, 16, 4); }
+    else if (player.faceStyle === 2) { ctx.fillRect(x - 12, y - 8, 6, 5); ctx.fillRect(x + 6, y - 8, 6, 5); ctx.lineWidth = 2; ctx.strokeStyle = "#000"; ctx.beginPath(); ctx.moveTo(x-14, y-12); ctx.lineTo(x-4, y-7); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x+14, y-12); ctx.lineTo(x+4, y-7); ctx.stroke(); ctx.fillRect(x - 6, y + 6, 12, 3); }
+    else if (player.faceStyle === 3) { ctx.fillRect(x - 15, y - 11, 30, 7); ctx.fillStyle = "#fff"; ctx.fillRect(x - 10, y - 9, 6, 2); ctx.fillRect(x + 4, y - 9, 6, 2); ctx.fillStyle = "#000"; ctx.fillRect(x - 6, y + 5, 12, 3); }
+    else if (player.faceStyle === 4) { ctx.fillRect(x - 12, y - 12, 5, 5); ctx.fillRect(x + 7, y - 12, 5, 5); ctx.beginPath(); ctx.arc(x, y + 4, 5, 0, Math.PI * 2); ctx.fill(); }
+}
+
+function update() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    floorY = canvas.height - 165; 
+    ctx.fillStyle = bgColors[bgIdx]; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = "rgba(255,255,255,0.05)"; ctx.lineWidth = 1;
+    let offsetx = (gameState === "PLAYING" ? -player.x : -cameraX) % 40;
+    for (let x = offsetx; x < canvas.width; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, floorY); ctx.stroke(); }
+
+    if (gameState === "PLAYING") {
+        if (levelGameMode === "platformer") { if (movingLeft) player.x -= 4; if (movingRight) player.x += 4; cameraX = player.x - 120; } 
+        else { player.x += gameSpeed; cameraX = player.x - 120; }
+        if (player.mode === "ship") { player.ySpeed += 0.35; player.ySpeed = Math.min(5.5, player.ySpeed); } else { player.ySpeed += gravity; }
+        player.y += player.ySpeed;
+
+        let onSolidPlatform = false;
+        if (player.y >= floorY - player.size) { player.y = floorY - player.size; player.ySpeed = 0; player.isGrounded = true; if(player.mode === "cube") player.rotation = Math.round(player.rotation / 90) * 90; } 
+        else { player.isGrounded = false; }
+
+        obstacles.forEach(obj => {
+            let realY = Math.floor(floorY - obj.y - 40); let drawX = Math.floor(obj.x - cameraX);
+            drawObjectTexture(obj, drawX, realY);
+
+            if (obj.type === "spike") {
+                if (player.x + player.size > obj.x + 6 && player.x < obj.x + obj.w - 6 && player.y + player.size > realY + 6 && player.y < realY + obj.h) { gameState = "LOSE"; loseScreen.style.display = "flex"; }
+            }
+            else if (obj.type === "block") {
+                let pBottom = player.y + player.size;
+                let pRight = player.x + player.size;
+                if (pRight > obj.x + 2 && player.x < obj.x + obj.w - 2 && pBottom > realY && player.y < realY + 40) {
+                    if (player.ySpeed >= 0 && pBottom - player.ySpeed <= realY + 8) {
+                        player.y = realY - player.size; player.ySpeed = 0; player.isGrounded = true; onSolidPlatform = true;
+                        if (player.mode === "cube") player.rotation = Math.round(player.rotation / 90) * 90;
+                    } else { gameState = "LOSE"; loseScreen.style.display = "flex"; }
+                }
+            }
+            else if (obj.type === "pad") {
+                if (player.x + player.size > obj.x && player.x < obj.x + obj.w && player.y + player.size > floorY - obj.y - 12 && player.y < floorY - obj.y) { player.ySpeed = player.jumpForce * 1.25; player.isGrounded = false; }
+            }
+            else if (obj.type === "pcube" || obj.type === "pship") {
+                if (player.x + player.size > obj.x + 10 && player.x < obj.x + 30 && player.y + player.size > realY && player.y < realY + 40) { player.mode = (obj.type === "pcube") ? "cube" : "ship"; }
+            }
+            else if (obj.type === "speed1" || obj.type === "speed2") {
+                if (player.x + player.size > obj.x && player.x < obj.x + obj.w && player.y + player.size > realY && player.y < realY + 40) { gameSpeed = (obj.type === "speed1") ? baseSpeed : baseSpeed * 1.4; }
+            }
+        });
+
+        if (onSolidPlatform) player.isGrounded = true;
+        if (player.y <= 0) { player.y = 0; player.ySpeed = 0; }
+        if (!player.isGrounded) { if (player.mode === "cube") player.rotation += 4.5; else player.rotation = player.ySpeed * 3.5; }
+
+        if (obstacles.length > 0 && obstacles[obstacles.length - 1].x < player.x - 200) { gameState = "WIN"; winScreen.style.display = "flex"; }
+        ctx.fillStyle = floorColors[floorIdx]; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+        ctx.fillStyle = "#00bcd4"; ctx.fillRect(0, floorY, canvas.width, 4);
+
+        ctx.save(); ctx.translate(player.x - cameraX + player.size/2, player.y + player.size/2); ctx.rotate((player.rotation * Math.PI) / 180); ctx.fillStyle = player.color;
+        if (player.mode === "cube") { ctx.fillRect(-player.size/2, -player.size/2, player.size, player.size); ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.strokeRect(-player.size/2, -player.size/2, player.size, player.size); drawFace(0, 0); } 
+        else { ctx.beginPath(); ctx.moveTo(-20, 10); ctx.lineTo(20, 0); ctx.lineTo(-20, -15); ctx.lineTo(-10, 0); ctx.closePath(); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke(); }
+        ctx.restore();
+    } else if (gameState === "EDITOR") {
+        ctx.fillStyle = floorColors[floorIdx]; ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+        ctx.fillStyle = "#e67e22"; ctx.fillRect(0, floorY, canvas.width, 4);
+        ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fillRect(0, floorY - 80, 70, 70); ctx.fillRect(canvas.width - 70, floorY - 80, 70, 70);
+        ctx.fillStyle = "#fff"; ctx.font = "bold 22px Arial"; ctx.fillText("<", 28, floorY - 38); ctx.fillText(">", canvas.width - 45, floorY - 38);
+        
+        // ТОТАЛЬНЫЙ ФИКС ОТРЕСОВКИ В РЕДАКТОРЕ: Теперь высота Y рассчитывается в точности как в тесте игры!
+        customLevel.forEach(obj => { 
+            let sX = Math.floor(obj.x - cameraX); 
+            let rY = Math.floor(floorY - obj.y - 40); 
+            if (sX > -45 && sX < canvas.width + 45) { drawObjectTexture(obj, sX, rY); } 
+        });
+        if (cameraX < player.x + 200) { ctx.fillStyle = player.color; ctx.fillRect(player.x - cameraX, floorY - player.size, player.size, player.size); }
+    }
+    requestAnimationFrame(update);
+}
+update();
+</script>
+</body>
+</html>
